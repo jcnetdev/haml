@@ -189,11 +189,14 @@ END
       @index = index + 1
 
       case text[0]
-      when DIV_CLASS, DIV_ID; render_div(text)
+      when DIV_CLASS, DIV_ID 
+        return push_script(unescape_interpolation(text.strip), false, false, false, true) if contains_interpolation?(text)
+        render_div(text)
       when ELEMENT; render_tag(text)
       when COMMENT; render_comment(text[1..-1].strip)
       when SANITIZE
         return push_script(unescape_interpolation(text[3..-1].strip), false, false, false, true) if text[1..2] == "=="
+        return push_script(unescape_interpolation(text[2..-1].strip), false, false, false, true) if contains_interpolation?(text)
         return push_script(text[2..-1].strip, false, false, false, true) if text[1] == SCRIPT
         push_plain text
       when SCRIPT
@@ -225,8 +228,12 @@ END
         return push_script(unescape_interpolation(text[3..-1].strip), false) if text[1..2] == "=="
         return push_script(text[2..-1].strip, false) if text[1] == SCRIPT
         push_plain text
-      when ESCAPE; push_plain text[1..-1]
-      else push_plain text
+      when ESCAPE
+        return push_script(unescape_interpolation(text[1..-1].strip), false) if contains_interpolation?(text)
+        push_plain text[1..-1]
+      else 
+        return push_script(unescape_interpolation(text[0..-1].strip), false) if contains_interpolation?(text)
+        push_plain text
       end
     end
 
@@ -546,6 +553,15 @@ END
         if value[0] == ?=
           parse = true
           value = (value[1] == ?= ? unescape_interpolation(value[2..-1].strip) : value[1..-1].strip)
+        elsif contains_interpolation?(value)
+          parse = true
+          value = unescape_interpolation(value.strip)
+        end
+      else
+        if contains_interpolation?(value)
+          # switch to parse if interpolation is detected
+          parse = true
+          value = unescape_interpolation(value.strip) 
         end
       end
 
@@ -759,7 +775,13 @@ END
     end
 
     def contains_interpolation?(str)
-      str.include?('#{')
+      interpolation_index = str.index('#{')
+      if interpolation_index
+        # checks the rest of the line for a closing brace
+        return !str.index("}", interpolation_index).nil?
+      else
+        return false
+      end
     end
 
     def unescape_interpolation(str)

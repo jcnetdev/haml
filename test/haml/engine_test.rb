@@ -55,6 +55,7 @@ class EngineTest < Test::Unit::TestCase
     "foo\n\n\n  bar" => ["Illegal nesting: nesting within plain text is illegal.", 4],
     "%p/\n\n  bar" => ["Illegal nesting: nesting within a self-closing tag is illegal.", 3],
     "%p foo\n\n  bar" => ["Illegal nesting: content can't be both given on the same line as %p and nested within it.", 3],
+    "%p \#{'hello''}\n\n  bar" => ["Illegal nesting: content can't be both given on the same line as %p and nested within it.", 3],
     "/ foo\n\n  bar" => ["Illegal nesting: nesting within a tag that already has content is illegal.", 3],
     "!!!\n\n  bar" => ["Illegal nesting: nesting within a header command is illegal.", 3],
     "foo\n:ruby\n  1\n  2\n  3\n- raise 'foo'" => ["foo", 6],
@@ -137,6 +138,62 @@ class EngineTest < Test::Unit::TestCase
   def test_double_equals_in_the_middle_of_a_string
     assert_equal("\"title 'Title'. \"\n",
                  render("== \"title '\#{\"Title\"}'. \""))
+  end
+
+  def test_implicit_interpolation
+    assert_equal("Hello World\n", render('Hello #{who}', :locals => {:who => 'World'}))
+  end
+
+  def test_implicit_interpolation_without_end
+    assert_equal("Hello \#{who\n", render('Hello #{who', :locals => {:who => 'World'}))
+    assert_equal("<p>Hello \#{who</p>\n", render('%p Hello #{who', :locals => {:who => 'World'}))
+  end
+
+  def test_implicit_interpolation_at_beginning
+    assert_equal("World\n", render('#{who}', :locals => {:who => 'World'}))
+  end
+
+  def test_escaped_hash
+    assert_equal("Hello \#{who}\n", render('Hello \\#{who}'))
+  end
+
+  def test_implicit_interpolation_with_tag
+    assert_equal("<p>Hello World</p>\n", render('%p Hello #{who}', :locals => {:who => 'World'}))
+    assert_equal(<<HTML, render(<<HAML, :locals => {:who => 'World'}))
+<p>
+  Hello World
+</p>
+HTML
+%p
+  == Hello \#{who}
+HAML
+  end
+
+  def test_implicit_interpolation_at_beginning_with_tag
+    assert_equal("<p>World</p>\n", render('%p #{who}', :locals => {:who => 'World'}))
+    assert_equal(<<HTML, render(<<HAML, :locals => {:who => 'World'}))
+<p>
+  World
+</p>
+HTML
+%p
+  \#{who}
+HAML
+  end
+
+  def test_explicit_interpolation
+    assert_equal("<p>Hello World</p>\n", render('%p== Hello #{who}', :locals => {:who => 'World'}))
+  end
+
+  def test_escaped_actions
+    assert_equal("- Hello World\n", render('\\- Hello World'))
+    assert_equal("= Hello World\n", render('\\= Hello World'))
+    assert_equal("~ Hello World\n", render('\\~ Hello World'))
+    assert_equal("== Hello World\n", render('\\== Hello World'))
+  end
+
+  def test_escaped_actions_with_implicit_interpolation
+    assert_equal("= Hello World\n", render('\\= Hello #{who}', :locals => {:who => 'World'}))    
   end
 
   def test_nil_tag_value_should_render_as_empty
@@ -257,9 +314,28 @@ HAML
   def test_ampersand_equals_should_escape
     assert_equal("<p>\n  foo &amp; bar\n</p>\n", render("%p\n  &= 'foo & bar'", :escape_html => false))
   end
+  
+  def test_ampersand_with_implicit_interpolation
+    assert_equal(<<HTML, render(<<HAML, :locals => {:complete => "bar"}, :escape_html => false))
+<p>
+  foo &amp; bar
+</p>
+HTML
+%p
+  & foo & \#{complete}
+HAML
+  end
 
   def test_ampersand_equals_inline_should_escape
     assert_equal("<p>foo &amp; bar</p>\n", render("%p&= 'foo & bar'", :escape_html => false))
+  end
+  
+  def test_ampersand_interpolation_inline_should_escape
+    assert_equal("<p>foo &amp; bar</p>\n", render("%p&== foo & \#{complete}", :locals => {:complete => "bar"}, :escape_html => false))
+  end
+  
+  def test_ampersand_implicit_interpolation_inline_should_escape
+    assert_equal("<p>foo bar</p>\n", render("%p& foo \#{complete}", :locals => {:complete => "bar"}, :escape_html => false))
   end
 
   def test_ampersand_equals_should_escape_before_preserve
@@ -295,10 +371,15 @@ HAML
     assert_equal("<img alt='' src='foo&#x000A;.png' />\n",
                  render("%img{:width => nil, :src => \"foo\\n.png\", :alt => String.new}"))
   end
-  
+
   def test_string_interpolation_should_be_esaped
-    assert_equal("<p>4&amp;3</p>\n", render("%p== #{2+2}&#{2+1}", :escape_html => true))
-    assert_equal("<p>4&3</p>\n", render("%p== #{2+2}&#{2+1}", :escape_html => false))
+    assert_equal("<p>4&amp;3</p>\n", render("%p== \#{2+2}&\#{2+1}", :escape_html => true))
+    assert_equal("<p>4&3</p>\n", render("%p== \#{2+2}&\#{2+1}", :escape_html => false))
+  end
+
+  def test_implicit_string_interpolation_should_be_esaped
+    assert_equal("<p>4&amp;3</p>\n", render("%p \#{2+2}&\#{2+1}", :escape_html => true))
+    assert_equal("<p>4&3</p>\n", render("%p \#{2+2}&\#{2+1}", :escape_html => false))
   end
 
   def test_escaped_inline_string_interpolation
@@ -312,18 +393,18 @@ HAML
   end
 
   def test_escaped_string_interpolation
-    assert_equal("<p>\n  4&amp;3\n</p>\n", render("%p\n  &== #{2+2}&#{2+1}", :escape_html => true))
-    assert_equal("<p>\n  4&amp;3\n</p>\n", render("%p\n  &== #{2+2}&#{2+1}", :escape_html => false))
+    assert_equal("<p>\n 4&amp;3\n</p>\n", render("%p\n &== #{2+2}&#{2+1}", :escape_html => true))
+    assert_equal("<p>\n 4&amp;3\n</p>\n", render("%p\n &== #{2+2}&#{2+1}", :escape_html => false))
   end
 
   def test_unescaped_string_interpolation
-    assert_equal("<p>\n  4&3\n</p>\n", render("%p\n  !== #{2+2}&#{2+1}", :escape_html => true))
-    assert_equal("<p>\n  4&3\n</p>\n", render("%p\n  !== #{2+2}&#{2+1}", :escape_html => false))
+    assert_equal("<p>\n 4&3\n</p>\n", render("%p\n !== #{2+2}&#{2+1}", :escape_html => true))
+    assert_equal("<p>\n 4&3\n</p>\n", render("%p\n !== #{2+2}&#{2+1}", :escape_html => false))
   end
 
   def test_scripts_should_respect_escape_html_option
-    assert_equal("<p>\n  foo &amp; bar\n</p>\n", render("%p\n  = 'foo & bar'", :escape_html => true))
-    assert_equal("<p>\n  foo & bar\n</p>\n", render("%p\n  = 'foo & bar'", :escape_html => false))
+    assert_equal("<p>\n foo &amp; bar\n</p>\n", render("%p\n = 'foo & bar'", :escape_html => true))
+    assert_equal("<p>\n foo & bar\n</p>\n", render("%p\n = 'foo & bar'", :escape_html => false))
   end
 
   def test_inline_scripts_should_respect_escape_html_option
