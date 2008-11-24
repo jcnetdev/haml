@@ -383,28 +383,28 @@ HAML
   end
 
   def test_escaped_inline_string_interpolation
-    assert_equal("<p>4&amp;3</p>\n", render("%p&== #{2+2}&#{2+1}", :escape_html => true))
-    assert_equal("<p>4&amp;3</p>\n", render("%p&== #{2+2}&#{2+1}", :escape_html => false))
+    assert_equal("<p>4&amp;3</p>\n", render("%p&== \#{2+2}&\#{2+1}", :escape_html => true))
+    assert_equal("<p>4&amp;3</p>\n", render("%p&== \#{2+2}&\#{2+1}", :escape_html => false))
   end
 
   def test_unescaped_inline_string_interpolation
-    assert_equal("<p>4&3</p>\n", render("%p!== #{2+2}&#{2+1}", :escape_html => true))
-    assert_equal("<p>4&3</p>\n", render("%p!== #{2+2}&#{2+1}", :escape_html => false))
+    assert_equal("<p>4&3</p>\n", render("%p!== \#{2+2}&\#{2+1}", :escape_html => true))
+    assert_equal("<p>4&3</p>\n", render("%p!== \#{2+2}&\#{2+1}", :escape_html => false))
   end
 
   def test_escaped_string_interpolation
-    assert_equal("<p>\n 4&amp;3\n</p>\n", render("%p\n &== #{2+2}&#{2+1}", :escape_html => true))
-    assert_equal("<p>\n 4&amp;3\n</p>\n", render("%p\n &== #{2+2}&#{2+1}", :escape_html => false))
+    assert_equal("<p>\n  4&amp;3\n</p>\n", render("%p\n  &== \#{2+2}&\#{2+1}", :escape_html => true))
+    assert_equal("<p>\n  4&amp;3\n</p>\n", render("%p\n  &== \#{2+2}&\#{2+1}", :escape_html => false))
   end
 
   def test_unescaped_string_interpolation
-    assert_equal("<p>\n 4&3\n</p>\n", render("%p\n !== #{2+2}&#{2+1}", :escape_html => true))
-    assert_equal("<p>\n 4&3\n</p>\n", render("%p\n !== #{2+2}&#{2+1}", :escape_html => false))
+    assert_equal("<p>\n  4&3\n</p>\n", render("%p\n  !== \#{2+2}&\#{2+1}", :escape_html => true))
+    assert_equal("<p>\n  4&3\n</p>\n", render("%p\n  !== \#{2+2}&\#{2+1}", :escape_html => false))
   end
 
   def test_scripts_should_respect_escape_html_option
-    assert_equal("<p>\n foo &amp; bar\n</p>\n", render("%p\n = 'foo & bar'", :escape_html => true))
-    assert_equal("<p>\n foo & bar\n</p>\n", render("%p\n = 'foo & bar'", :escape_html => false))
+    assert_equal("<p>\n  foo &amp; bar\n</p>\n", render("%p\n  = 'foo & bar'", :escape_html => true))
+    assert_equal("<p>\n  foo & bar\n</p>\n", render("%p\n  = 'foo & bar'", :escape_html => false))
   end
 
   def test_inline_scripts_should_respect_escape_html_option
